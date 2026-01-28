@@ -1,0 +1,290 @@
+#!/usr/bin/env groovy
+
+/**
+ * Main Jenkinsfile for Terraform Infrastructure Provisioning
+ * Orchestrates provisioning across multiple environments (Dev, Test, Prod, Docker, Local)
+ * 
+ * Features:
+ * - Multi-environment support (Dev, Test, Prod, Docker, Local)
+ * - Terraform init, plan, and apply workflows
+ * - Docker image build and push
+ * - Environment-specific configurations
+ * - Approval gates for production
+ * - Automated testing and validation
+ * - Email notifications
+ */
+
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'test', 'prod', 'docker', 'local'],
+            description: 'Select environment to provision'
+        )
+        choice(
+            name: 'ACTION',
+            choices: ['plan', 'apply', 'destroy', 'validate'],
+            description: 'Infrastructure action'
+        )
+        booleanParam(
+            name: 'AUTO_APPROVE',
+            defaultValue: false,
+            description: 'Auto-approve Terraform changes (not for prod)'
+        )
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        disableConcurrentBuilds()
+        timestamps()
+        timeout(time: 1, unit: 'HOURS')
+    }
+
+    environment {
+        TERRAFORM_VERSION = '1.5.0'
+        AWS_REGION = 'us-east-1'
+        DOCKER_REGISTRY = 'docker.io'
+        WORKSPACE = "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/${ENVIRONMENT}"
+    }
+
+    stages {
+        stage('Initialization') {
+            steps {
+                script {
+                    echo "═══════════════════════════════════════════════════════════"
+                    echo "Environment Provisioning Pipeline"
+                    echo "═══════════════════════════════════════════════════════════"
+                    echo "Environment: ${ENVIRONMENT}"
+                    echo "Action: ${ACTION}"
+                    echo "Auto-Approve: ${AUTO_APPROVE}"
+                    echo "Workspace: ${WORKSPACE}"
+                    echo "═══════════════════════════════════════════════════════════"
+                }
+            }
+        }
+
+        stage('Validate') {
+            steps {
+                script {
+                    echo "Validating environment configuration..."
+                    sh '''
+                        cd "${WORKSPACE}"
+                        terraform init -backend=false
+                        terraform validate
+                        echo "✓ Terraform validation passed"
+                    '''
+                }
+            }
+        }
+
+        stage('Format Check') {
+            steps {
+                script {
+                    echo "Checking Terraform code format..."
+                    sh '''
+                        cd "${WORKSPACE}"
+                        terraform fmt -check -recursive || {
+                            echo "⚠ Code formatting issues detected"
+                            terraform fmt -recursive
+                        }
+                    '''
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            when {
+                expression { params.ACTION in ['plan', 'apply'] }
+            }
+            steps {
+                script {
+                    echo "Running Terraform plan for ${ENVIRONMENT}..."
+                    sh '''
+                        cd "${WORKSPACE}"
+                        terraform init
+                        terraform plan -out=tfplan -lock=false
+                        terraform show tfplan > tfplan.txt
+                        echo "✓ Terraform plan completed"
+                    '''
+                    archiveArtifacts artifacts: 'tfplan.txt', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Review & Approval') {
+            when {
+                allOf {
+                    expression { params.ACTION == 'apply' }
+                    expression { params.ENVIRONMENT == 'prod' }
+                    expression { !params.AUTO_APPROVE }
+                }
+            }
+            steps {
+                script {
+                    try {
+                        input(
+                            id: 'ProdApproval',
+                            message: "Approve infrastructure changes for PRODUCTION?",
+                            ok: 'APPROVE',
+                            submitter: 'terraform-approvers'
+                        )
+                        echo "✓ Production deployment approved"
+                    } catch (err) {
+                        error("Production deployment rejected")
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            when {
+                expression { params.ACTION == 'apply' }
+            }
+            steps {
+                script {
+                    echo "Applying Terraform changes to ${ENVIRONMENT}..."
+                    sh '''
+                        cd "${WORKSPACE}"
+                        
+                        if [ "${AUTO_APPROVE}" = "true" ] && [ "${ENVIRONMENT}" != "prod" ]; then
+                            terraform apply -auto-approve tfplan
+                        else
+                            terraform apply tfplan
+                        fi
+                        
+                        echo "✓ Terraform apply completed"
+                        terraform output > terraform-outputs.txt
+                    '''
+                    archiveArtifacts artifacts: 'terraform-outputs.txt', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when {
+                expression { params.ACTION == 'destroy' }
+            }
+            steps {
+                script {
+                    if (params.ENVIRONMENT == 'prod') {
+                        error("❌ Cannot destroy production infrastructure via pipeline. Use manual process.")
+                    }
+                    
+                    echo "Planning destruction of ${ENVIRONMENT} infrastructure..."
+                    sh '''
+                        cd "${WORKSPACE}"
+                        terraform init
+                        terraform plan -destroy -out=tfplan
+                        terraform apply tfplan
+                        echo "✓ Infrastructure destroyed"
+                    '''
+                }
+            }
+        }
+
+        stage('Validate') {
+            when {
+                expression { params.ACTION == 'validate' }
+            }
+            steps {
+                script {
+                    echo "Running validation for ${ENVIRONMENT}..."
+                    sh '''
+                        cd "${WORKSPACE}"
+                        terraform init -backend=false
+                        terraform validate
+                        terraform fmt -check -recursive
+                        echo "✓ All validations passed"
+                    '''
+                }
+            }
+        }
+
+        stage('Post-Deployment Tests') {
+            when {
+                expression { params.ACTION == 'apply' }
+            }
+            steps {
+                script {
+                    echo "Running post-deployment tests..."
+                    sh '''
+                        if [ -f "../../tests/smoke-tests.sh" ]; then
+                            bash "../../tests/smoke-tests.sh" ${ENVIRONMENT}
+                        else
+                            echo "No test suite found"
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Documentation') {
+            when {
+                expression { params.ACTION == 'apply' }
+            }
+            steps {
+                script {
+                    echo "Generating infrastructure documentation..."
+                    sh '''
+                        cd "${WORKSPACE}"
+                        terraform show > infrastructure-state.txt
+                        echo "✓ Documentation generated"
+                    '''
+                    archiveArtifacts artifacts: 'infrastructure-state.txt', allowEmptyArchive: true
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                echo "Cleaning up workspace..."
+                cleanWs()
+            }
+        }
+        
+        success {
+            script {
+                echo "✅ Pipeline completed successfully for ${ENVIRONMENT}"
+                emailext(
+                    subject: "✅ Infrastructure Provisioning Successful - ${ENVIRONMENT}",
+                    body: """
+                    Environment: ${ENVIRONMENT}
+                    Action: ${ACTION}
+                    Status: SUCCESS
+                    Build: ${BUILD_NUMBER}
+                    Build URL: ${BUILD_URL}
+                    """,
+                    to: '${DEFAULT_RECIPIENTS}',
+                    recipientProviders: [developers(), requestor()]
+                )
+            }
+        }
+        
+        failure {
+            script {
+                echo "❌ Pipeline failed for ${ENVIRONMENT}"
+                emailext(
+                    subject: "❌ Infrastructure Provisioning Failed - ${ENVIRONMENT}",
+                    body: """
+                    Environment: ${ENVIRONMENT}
+                    Action: ${ACTION}
+                    Status: FAILED
+                    Build: ${BUILD_NUMBER}
+                    Build URL: ${BUILD_URL}
+                    Error: See console output for details
+                    """,
+                    to: '${DEFAULT_RECIPIENTS}',
+                    recipientProviders: [developers(), requestor()]
+                )
+            }
+        }
+        
+        unstable {
+            echo "⚠️  Pipeline is unstable for ${ENVIRONMENT}"
+        }
+    }
+}

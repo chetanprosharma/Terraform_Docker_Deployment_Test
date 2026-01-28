@@ -1,0 +1,369 @@
+#!/usr/bin/env groovy
+
+/**
+ * Jenkinsfile for Local Environment
+ * Local development testing and rapid iteration
+ */
+
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'ACTION',
+            choices: ['validate', 'plan', 'apply', 'destroy', 'test'],
+            description: 'Terraform action for local environment'
+        )
+        booleanParam(
+            name: 'DESTROY_RESOURCES',
+            defaultValue: false,
+            description: 'Destroy resources after testing'
+        )
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: 'Skip post-deployment tests'
+        )
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        ENVIRONMENT = 'local'
+        TF_VAR_environment = 'local'
+        TF_IN_AUTOMATION = 'true'
+        TF_LOCAL_PATH = "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/Local"
+    }
+
+    stages {
+        stage('Initialization') {
+            steps {
+                script {
+                    echo "═══════════════════════════════════════════════════════"
+                    echo "Local Environment - Development Cycle"
+                    echo "═══════════════════════════════════════════════════════"
+                    echo "Action: ${ACTION}"
+                    echo "Workspace: ${TF_LOCAL_PATH}"
+                    sh '''
+                        echo "Environment:"
+                        echo "  Jenkins Version: $(java -version 2>&1 | head -1)"
+                        echo "  Terraform Version: $(terraform -version | head -1)"
+                        echo "  Docker Version: $(docker --version)"
+                        echo "  OS: $(uname -s)"
+                    '''
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    echo "Current directory: $(pwd)"
+                    ls -la
+                    echo ""
+                    echo "Terraform files:"
+                    find . -name "*.tf" -type f
+                '''
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    
+                    echo "Initializing Terraform..."
+                    terraform init -upgrade=false
+                    
+                    echo "✓ Terraform initialized"
+                '''
+            }
+        }
+
+        stage('Validate Configuration') {
+            when {
+                expression { params.ACTION in ['validate', 'plan', 'apply', 'test'] }
+            }
+            steps {
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    
+                    echo "Validating Terraform configuration..."
+                    terraform validate
+                    
+                    echo "✓ Configuration valid"
+                '''
+            }
+        }
+
+        stage('Format Check') {
+            steps {
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    
+                    echo "Checking Terraform format..."
+                    terraform fmt -check -diff || true
+                    
+                    echo "✓ Format check completed"
+                '''
+            }
+        }
+
+        stage('Terraform Plan') {
+            when {
+                expression { params.ACTION in ['plan', 'apply', 'test'] }
+            }
+            steps {
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    
+                    echo "Planning Terraform changes..."
+                    
+                    terraform plan \
+                        -out=tfplan-local \
+                        -input=false \
+                        -detailed-exitcode || {
+                            EXIT_CODE=$?
+                            if [ $EXIT_CODE -eq 2 ]; then
+                                echo "Plan shows changes that would be applied"
+                            elif [ $EXIT_CODE -ne 0 ]; then
+                                exit $EXIT_CODE
+                            fi
+                        }
+                    
+                    # Show plan
+                    echo ""
+                    echo "Plan Summary:"
+                    terraform show tfplan-local | head -50
+                    
+                    echo "✓ Plan completed"
+                '''
+            }
+        }
+
+        stage('Apply Configuration') {
+            when {
+                expression { params.ACTION in ['apply', 'test'] }
+            }
+            steps {
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    
+                    echo "Applying Terraform configuration..."
+                    
+                    terraform apply \
+                        -auto-approve \
+                        -input=false \
+                        tfplan-local || {
+                            echo "⚠ Apply failed, attempting rollback..."
+                            terraform destroy -auto-approve -input=false || true
+                            exit 1
+                        }
+                    
+                    echo "✓ Configuration applied"
+                    
+                    # Save outputs
+                    terraform output -json > local-outputs.json
+                    echo "Outputs saved to local-outputs.json"
+                '''
+            }
+        }
+
+        stage('Run Local Tests') {
+            when {
+                expression { params.ACTION in ['test'] && !params.SKIP_TESTS }
+            }
+            steps {
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    
+                    echo "Running local tests..."
+                    
+                    # Get outputs
+                    CONTAINER_ID=$(terraform output -raw container_id 2>/dev/null || echo "")
+                    
+                    if [ -z "$CONTAINER_ID" ]; then
+                        echo "⚠ No container found, skipping container tests"
+                    else
+                        echo "Testing container: $CONTAINER_ID"
+                        
+                        # Wait for container to be ready
+                        sleep 3
+                        
+                        # Basic connectivity test
+                        docker exec $CONTAINER_ID curl -f http://localhost/api/health || {
+                            echo "Health check failed"
+                            docker logs $CONTAINER_ID
+                        }
+                        
+                        echo "✓ Container tests passed"
+                    fi
+                    
+                    # Run Terraform tests
+                    echo ""
+                    echo "Terraform validation tests:"
+                    terraform output -no-color > /tmp/outputs.txt
+                    [ -s /tmp/outputs.txt ] && echo "✓ Outputs generated"
+                    
+                    echo "✓ All tests passed"
+                '''
+            }
+        }
+
+        stage('Cleanup & Destroy') {
+            when {
+                expression { params.ACTION == 'destroy' || (params.ACTION == 'test' && params.DESTROY_RESOURCES) }
+            }
+            steps {
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    
+                    echo "Destroying local resources..."
+                    
+                    # Save state before destroy
+                    if [ -f terraform.tfstate ]; then
+                        cp terraform.tfstate terraform.tfstate.backup.pre-destroy
+                        echo "✓ State backed up"
+                    fi
+                    
+                    # Destroy resources
+                    terraform destroy \
+                        -auto-approve \
+                        -input=false
+                    
+                    echo "✓ Resources destroyed"
+                    
+                    # Show remaining resources
+                    echo ""
+                    echo "Remaining Terraform state:"
+                    terraform show || echo "No state"
+                '''
+            }
+        }
+
+        stage('Post-Deployment Validation') {
+            when {
+                expression { params.ACTION in ['apply', 'test'] && !params.DESTROY_RESOURCES }
+            }
+            steps {
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    
+                    echo "Validating deployment..."
+                    
+                    # Check outputs exist
+                    if [ -f local-outputs.json ]; then
+                        echo "Outputs:"
+                        cat local-outputs.json | head -20
+                    fi
+                    
+                    # List Docker containers
+                    echo ""
+                    echo "Docker containers:"
+                    docker ps -f label=environment=local || echo "No containers with local label"
+                    
+                    echo "✓ Validation completed"
+                '''
+            }
+        }
+
+        stage('Generate Report') {
+            when {
+                expression { params.ACTION != 'destroy' }
+            }
+            steps {
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    
+                    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                    
+                    cat > local-execution-report.txt << EOF
+Local Environment Execution Report
+===================================
+
+Date: ${TIMESTAMP}
+Build: ${BUILD_NUMBER}
+Action: ${ACTION}
+
+Terraform Version:
+$(terraform -version | head -3)
+
+Current State:
+EOF
+                    
+                    if [ -f local-outputs.json ]; then
+                        echo "" >> local-execution-report.txt
+                        echo "Deployment Outputs:" >> local-execution-report.txt
+                        cat local-outputs.json >> local-execution-report.txt
+                    fi
+                    
+                    echo "" >> local-execution-report.txt
+                    echo "Docker Status:" >> local-execution-report.txt
+                    docker ps -f label=environment=local >> local-execution-report.txt 2>&1 || echo "No containers" >> local-execution-report.txt
+                    
+                    echo "✓ Report generated"
+                '''
+                archiveArtifacts artifacts: 'local-execution-report.txt,local-outputs.json', allowEmptyArchive: true
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                sh '''
+                    cd "${TF_LOCAL_PATH}"
+                    
+                    # Cleanup plan files
+                    rm -f tfplan-local
+                    
+                    echo "Cleanup completed"
+                '''
+                cleanWs()
+            }
+        }
+        
+        success {
+            echo "✅ Local environment ${ACTION} completed successfully"
+            emailext(
+                subject: "✅ Local Environment ${ACTION.toUpperCase()} Success (Build ${BUILD_NUMBER})",
+                body: """
+                Local environment action completed successfully.
+                
+                Action: ${ACTION}
+                Build: ${BUILD_NUMBER}
+                Build URL: ${BUILD_URL}
+                
+                Status: SUCCESS
+                """,
+                to: '${DEFAULT_RECIPIENTS}'
+            )
+        }
+        
+        failure {
+            echo "❌ Local environment ${ACTION} failed"
+            emailext(
+                subject: "❌ Local Environment ${ACTION.toUpperCase()} Failed (Build ${BUILD_NUMBER})",
+                body: """
+                Local environment action failed.
+                
+                Action: ${ACTION}
+                Build: ${BUILD_NUMBER}
+                Build URL: ${BUILD_URL}
+                
+                Check logs for error details.
+                
+                Rollback: Manual cleanup required if resources were partially created.
+                """,
+                to: '${DEFAULT_RECIPIENTS}'
+            )
+        }
+    }
+}

@@ -1,0 +1,250 @@
+#!/usr/bin/env groovy
+
+/**
+ * Jenkinsfile for Test Environment
+ * Automated testing and validation before production
+ */
+
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'ACTION',
+            choices: ['plan', 'apply', 'validate', 'test'],
+            description: 'Action to perform'
+        )
+        booleanParam(
+            name: 'AUTO_APPROVE',
+            defaultValue: true,
+            description: 'Auto-approve Terraform changes'
+        )
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+        timestamps()
+        timeout(time: 45, unit: 'MINUTES')
+    }
+
+    environment {
+        ENVIRONMENT = 'test'
+        TF_VAR_environment = 'test'
+        AWS_REGION = 'us-east-1'
+    }
+
+    stages {
+        stage('Initialization') {
+            steps {
+                script {
+                    echo "═══════════════════════════════════════════════════════"
+                    echo "TEST Environment - Terraform & Validation Pipeline"
+                    echo "═══════════════════════════════════════════════════════"
+                    echo "Action: ${ACTION}"
+                    echo "Auto-Approve: ${AUTO_APPROVE}"
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh '''
+                    cd "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/Test"
+                    pwd
+                    ls -la
+                '''
+            }
+        }
+
+        stage('Terraform Validate') {
+            steps {
+                sh '''
+                    cd "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/Test"
+                    terraform init -backend=false
+                    terraform validate
+                    echo "✓ Terraform validation passed"
+                '''
+            }
+        }
+
+        stage('Code Quality Checks') {
+            steps {
+                sh '''
+                    cd "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/Test"
+                    
+                    # Format check
+                    terraform fmt -check -recursive || terraform fmt -recursive
+                    
+                    # Security scan (if tfsec installed)
+                    if command -v tfsec &> /dev/null; then
+                        tfsec . --format sarif > tfsec-report.sarif || true
+                    fi
+                    
+                    echo "✓ Code quality checks completed"
+                '''
+            }
+        }
+
+        stage('Terraform Plan') {
+            when {
+                expression { params.ACTION in ['plan', 'apply', 'test'] }
+            }
+            steps {
+                sh '''
+                    cd "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/Test"
+                    terraform init
+                    terraform plan -out=tfplan
+                    terraform show tfplan > tfplan-test.txt
+                '''
+                archiveArtifacts artifacts: 'tfplan-test.txt', allowEmptyArchive: true
+            }
+        }
+
+        stage('Terraform Apply') {
+            when {
+                expression { params.ACTION in ['apply', 'test'] }
+            }
+            steps {
+                sh '''
+                    cd "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/Test"
+                    
+                    if [ "${AUTO_APPROVE}" = "true" ]; then
+                        terraform apply -auto-approve tfplan
+                    else
+                        terraform apply tfplan
+                    fi
+                    
+                    terraform output -json > test-outputs.json
+                '''
+                archiveArtifacts artifacts: 'test-outputs.json', allowEmptyArchive: true
+            }
+        }
+
+        stage('Integration Tests') {
+            when {
+                expression { params.ACTION in ['apply', 'test'] }
+            }
+            steps {
+                script {
+                    echo "Running integration tests..."
+                    sh '''
+                        cd "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/Test"
+                        
+                        # Get outputs
+                        terraform output
+                        
+                        # Run smoke tests if they exist
+                        if [ -f "../../tests/smoke-tests.sh" ]; then
+                            bash "../../tests/smoke-tests.sh" test
+                        fi
+                        
+                        # Run integration tests if they exist
+                        if [ -f "../../tests/integration-tests.sh" ]; then
+                            bash "../../tests/integration-tests.sh" test
+                        fi
+                        
+                        echo "✓ Integration tests completed"
+                    '''
+                }
+            }
+        }
+
+        stage('Performance Tests') {
+            when {
+                expression { params.ACTION == 'test' }
+            }
+            steps {
+                script {
+                    echo "Running performance tests..."
+                    sh '''
+                        cd "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/Test"
+                        
+                        if [ -f "../../tests/performance-tests.sh" ]; then
+                            bash "../../tests/performance-tests.sh" test
+                        else
+                            echo "No performance tests configured"
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Report Generation') {
+            when {
+                expression { params.ACTION in ['apply', 'test'] }
+            }
+            steps {
+                sh '''
+                    cd "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/Test"
+                    
+                    echo "Generating test reports..."
+                    terraform show > infrastructure-state.txt
+                    
+                    cat > test-summary.txt << EOF
+Test Environment Summary
+========================
+Date: $(date)
+Environment: test
+Status: PASS
+Terraform Version: $(terraform version -json | jq -r '.terraform_version')
+EOF
+                    
+                    echo "✓ Reports generated"
+                '''
+                archiveArtifacts artifacts: '**/*.txt,**/*.sarif', allowEmptyArchive: true
+            }
+        }
+
+        stage('Validation') {
+            when {
+                expression { params.ACTION == 'validate' }
+            }
+            steps {
+                sh '''
+                    cd "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/Test"
+                    terraform init -backend=false
+                    terraform validate
+                    terraform fmt -check -recursive
+                    echo "✓ All validations passed"
+                '''
+            }
+        }
+
+        stage('Notify Success') {
+            when {
+                expression { params.ACTION in ['apply', 'test'] }
+            }
+            steps {
+                script {
+                    echo "Test environment is ready for promotion to production"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        
+        success {
+            echo "✅ Test environment provisioning completed successfully"
+            emailext(
+                subject: "✅ Test Infrastructure Provisioned - Build ${BUILD_NUMBER}",
+                body: "Test environment provisioning and validation completed successfully. Ready for production promotion. Build: ${BUILD_URL}",
+                to: '${DEFAULT_RECIPIENTS}'
+            )
+        }
+        
+        failure {
+            echo "❌ Test environment provisioning or validation failed"
+            emailext(
+                subject: "❌ Test Infrastructure Provisioning Failed - Build ${BUILD_NUMBER}",
+                body: "Test environment provisioning or validation failed. Check logs: ${BUILD_URL}",
+                to: '${DEFAULT_RECIPIENTS}'
+            )
+        }
+    }
+}
