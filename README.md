@@ -17,10 +17,6 @@ This is a **complete, production-ready DevOps infrastructure** with:
 ```
 /home/chetan/Desktop/DevOps/
 ├── 📖 README Files
-│   ├── START_HERE.txt (First read - getting started guide)
-│   ├── JENKINS-IMPLEMENTATION.md (Implementation summary)
-│   ├── CI-CD-GUIDE.md (Detailed guide - 15KB)
-│   └── PIPELINE-QUICKREF.md (Quick reference - 8KB)
 │
 ├── 🏗️ Terraform Configuration
 │   └── Terraform/
@@ -55,15 +51,11 @@ This is a **complete, production-ready DevOps infrastructure** with:
 │                   └── variable.tf
 │
 ├── ✅ Test & Validation
-│   └── tests/
-│       ├── smoke-tests.sh (Quick validation - 7.5KB)
-│       ├── integration-tests.sh (Comprehensive tests - 12KB)
-│       └── health-checks.sh (Infrastructure checks - 10KB)
-│
-└── 📚 Supporting Files
-    ├── Text Files/ (Additional documentation)
-    ├── Makefile (Optional - project commands)
-    └── [Other project files]
+    └── tests/
+        ├── smoke-tests.sh (Quick validation - 7.5KB)
+        ├── integration-tests.sh (Comprehensive tests - 12KB)
+        └── health-checks.sh (Infrastructure checks - 10KB)
+
 ```
 
 ---
@@ -80,8 +72,8 @@ cd /home/chetan/Desktop/DevOps
 # Expected: Health Score > 90%
 ```
 
-### Step 2: Review Documentation
-```bash
+### Step 2: Review Documentation (Skip)
+<!-- ```bash
 # Start here
 cat START_HERE.txt
 
@@ -90,7 +82,7 @@ less CI-CD-GUIDE.md
 
 # For quick commands
 less PIPELINE-QUICKREF.md
-```
+``` -->
 
 ### Step 3: Create Jenkins Jobs
 ```bash
@@ -125,8 +117,8 @@ java -jar jenkins-cli.jar build terraform-dev -p ACTION=apply
 
 ---
 
-## 📖 Documentation Guide
-
+## 📖 Documentation Guide (SKIP)
+<!-- 
 ### For First-Time Users
 1. **[START_HERE.txt](START_HERE.txt)** - Getting started overview
 2. **[JENKINS-IMPLEMENTATION.md](JENKINS-IMPLEMENTATION.md)** - What's been implemented
@@ -145,7 +137,7 @@ java -jar jenkins-cli.jar build terraform-dev -p ACTION=apply
 ### For Administrators
 1. **[CI-CD-GUIDE.md](CI-CD-GUIDE.md#security-considerations)** - Security section
 2. **[CI-CD-GUIDE.md](CI-CD-GUIDE.md#approval-process)** - Approval workflows
-3. **[CI-CD-GUIDE.md](CI-CD-GUIDE.md#troubleshooting)** - Troubleshooting guide
+3. **[CI-CD-GUIDE.md](CI-CD-GUIDE.md#troubleshooting)** - Troubleshooting guide -->
 
 ---
 
@@ -497,7 +489,7 @@ java -jar jenkins-cli.jar build terraform-dev -p ACTION=apply
   - User Groups (terraform-prod-approvers)
 
 ### Credentials
-- **AWS**: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+- **AWS**: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (SKIP)
 - **Docker**: DOCKER_USERNAME, DOCKER_PASSWORD
 - **Git**: SSH key for repository access
 
@@ -603,9 +595,9 @@ Deployed At: 2024-01-23 14:30 UTC
 
 ---
 
-## 🎓 Training Materials
+## 🎓 Training Materials (SKIP)
 
-### For DevOps Engineers
+<!-- ### For DevOps Engineers
 1. Read: [CI-CD-GUIDE.md](CI-CD-GUIDE.md)
 2. Practice: Deploy to each environment
 3. Understand: Approval processes and safety features
@@ -623,15 +615,15 @@ Deployed At: 2024-01-23 14:30 UTC
 3. Know: Approval requirements
 4. Review: Notification system
 
----
+--- -->
 
 ## 📞 Getting Help
 
-### Documentation
+<!-- ### Documentation
 - 📖 START_HERE.txt - Overview and quick start
 - 📖 CI-CD-GUIDE.md - Complete guide (15KB)
 - 📖 PIPELINE-QUICKREF.md - Quick commands (8KB)
-- 📖 JENKINS-IMPLEMENTATION.md - Implementation details
+- 📖 JENKINS-IMPLEMENTATION.md - Implementation details -->
 
 ### Commands
 ```bash
@@ -672,11 +664,11 @@ java -jar jenkins-cli.jar list-jobs
 - Integration tests (comprehensive)
 - Health checks (infrastructure status)
 
-✅ **4 Documentation Files** (~50KB total)
+<!-- ✅ **4 Documentation Files** (~50KB total)
 - Implementation guide (15KB)
 - Quick reference (8KB)
 - Getting started guide (3KB)
-- Overview document
+- Overview document -->
 
 ✅ **Complete Infrastructure**
 - 5 Environment configurations
@@ -725,5 +717,5 @@ java -jar jenkins-cli.jar list-jobs
 5. **Test**: Run validation scripts
 6. **Iterate**: Move through Test → Prod
 
-For detailed information, consult [CI-CD-GUIDE.md](CI-CD-GUIDE.md).
+<!-- For detailed information, consult [CI-CD-GUIDE.md](CI-CD-GUIDE.md). -->
 # Terraform_Docker_Deployment_Test
