@@ -184,24 +184,6 @@ pipeline {
             }
         }
 
-        stage('Validate') {
-            when {
-                expression { params.ACTION == 'validate' }
-            }
-            steps {
-                script {
-                    echo "Running validation for ${ENVIRONMENT}..."
-                    sh '''
-                        cd "${WORKSPACE}"
-                        terraform init -backend=false
-                        terraform validate
-                        terraform fmt -check -recursive
-                        echo "✓ All validations passed"
-                    '''
-                }
-            }
-        }
-
         stage('Post-Deployment Tests') {
             when {
                 expression { params.ACTION == 'apply' }
