@@ -46,7 +46,7 @@ pipeline {
         TERRAFORM_VERSION = '1.5.0'
         AWS_REGION = 'us-east-1'
         DOCKER_REGISTRY = 'docker.io'
-        WORKSPACE = "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/${ENVIRONMENT}"
+        WORKSPACE = "${WORKSPACE}/Terraform/EC2\ Provisioning/Environments/${ENVIRONMENT}"
         TF_OUTPUT_FILE = 'terraform-outputs.json'
     }
 
@@ -223,6 +223,7 @@ pipeline {
 
     post {
         always {
+            archiveArtifacts artifacts: 'terraform-outputs.json', fingerprint: true, allowEmptyArchive: true
             script {
                 echo "Cleaning up workspace..."
                 cleanWs()
