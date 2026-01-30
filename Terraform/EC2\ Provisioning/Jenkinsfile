@@ -47,6 +47,7 @@ pipeline {
         AWS_REGION = 'us-east-1'
         DOCKER_REGISTRY = 'docker.io'
         WORKSPACE = "${WORKSPACE}/Terraform/EC2 Provisioning/Environments/${ENVIRONMENT}"
+        TF_OUTPUT_FILE = 'terraform-outputs.json'
     }
 
     stages {
@@ -161,6 +162,23 @@ pipeline {
                 }
             }
         }
+        stage('Terraform Output') {
+            steps {
+                script {
+                sh """
+                    terraform output -json > ${TF_OUTPUT_FILE}
+                    cat ${TF_OUTPUT_FILE}
+                """
+
+                // Example: read a specific output into an env var
+                def tfOutputs = readJSON file: "${TF_OUTPUT_FILE}"
+
+                // Replace 'my_output' with your Terraform output name
+                env.MY_OUTPUT = tfOutputs.my_output.value.toString()
+                echo "Terraform output MY_OUTPUT: ${env.MY_OUTPUT}"
+                }
+            }        
+        }
 
         stage('Terraform Destroy') {
             when {
@@ -198,23 +216,6 @@ pipeline {
                             echo "No test suite found"
                         fi
                     '''
-                }
-            }
-        }
-
-        stage('Documentation') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
-            steps {
-                script {
-                    echo "Generating infrastructure documentation..."
-                    sh '''
-                        cd "${WORKSPACE}"
-                        terraform show > infrastructure-state.txt
-                        echo "✓ Documentation generated"
-                    '''
-                    archiveArtifacts artifacts: 'infrastructure-state.txt', allowEmptyArchive: true
                 }
             }
         }

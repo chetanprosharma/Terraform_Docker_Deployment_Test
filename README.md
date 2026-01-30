@@ -23,32 +23,11 @@ This is a **complete, production-ready DevOps infrastructure** with:
 │       └── EC2 Provisioning/
 │           ├── Jenkinsfile (Main orchestration pipeline)
 │           └── Environments/
-│               ├── Dev/
-│               │   ├── Jenkinsfile (Development pipeline - auto-approve)
-│               │   ├── main.tf
-│               │   ├── variable.tf
-│               │   └── output.tf
-│               ├── Test/
-│               │   ├── Jenkinsfile (Testing pipeline - automated tests)
-│               │   ├── main.tf
-│               │   ├── variable.tf
-│               │   ├── output.tf
-│               │   └── Modules/
-│               ├── Prod/
-│               │   ├── Jenkinsfile (Production pipeline - approval required)
-│               │   ├── main.tf
-│               │   ├── variable.tf
-│               │   └── output.tf
 │               ├── Docker/
 │               │   ├── Jenkinsfile (Docker build & deployment)
 │               │   ├── main.tf
 │               │   ├── output.tf
 │               │   └── variable.tf
-│               └── Local/
-│                   ├── Jenkinsfile (Local development)
-│                   ├── main.tf
-│                   ├── output.tf
-│                   └── variable.tf
 │
 ├── ✅ Test & Validation
     └── tests/

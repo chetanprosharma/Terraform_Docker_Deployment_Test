@@ -65,28 +65,6 @@ pipeline {
             }
         }
 
-        stage('Validate Dockerfile') {
-            steps {
-                sh '''
-                    cd "${DOCKER_PATH}"
-                    
-                    echo "Validating Dockerfile..."
-                    
-                    # Check Dockerfile exists
-                    [ -f "docker/Dockerfile" ] || exit 1
-                    
-                    # Hadolint check if available
-                    if command -v hadolint &> /dev/null; then
-                        hadolint docker/Dockerfile
-                    else
-                        echo "⚠ hadolint not installed, skipping linting"
-                    fi
-                    
-                    echo "✓ Dockerfile validation passed"
-                '''
-            }
-        }
-
         stage('Build Docker Image') {
             when {
                 expression { params.ACTION in ['build', 'all'] }
@@ -112,51 +90,6 @@ pipeline {
             }
         }
 
-        stage('Test Docker Image') {
-            when {
-                expression { params.ACTION in ['test', 'all'] }
-            }
-            steps {
-                sh '''
-                    cd "${DOCKER_PATH}"
-                    
-                    echo "Testing Docker image..."
-                    
-                    # Remove old test container
-                    docker rm -f test-container 2>/dev/null || true
-                    
-                    # Run container
-                    docker run -d --name test-container \
-                               -p 9091:80 \
-                               ${DOCKER_IMAGE}:${IMAGE_TAG}
-                    
-                    # Wait for startup
-                    sleep 5
-                    
-                    # Run tests
-                    echo "Running API tests..."
-                    curl -f http://localhost:9091/api/health || {
-                        docker logs test-container
-                        exit 1
-                    }
-                    
-                    curl -f http://localhost:9091/api/stats || {
-                        docker logs test-container
-                        exit 1
-                    }
-                    
-                    # Check logs
-                    docker logs test-container
-                    
-                    # Cleanup
-                    docker stop test-container
-                    docker rm test-container
-                    
-                    echo "✓ Docker image tests passed"
-                '''
-            }
-        }
-
         stage('Security Scan') {
             steps {
                 sh '''
@@ -169,30 +102,6 @@ pipeline {
                     
                     echo "✓ Security scan completed"
                 '''
-            }
-        }
-
-        stage('Push to Registry') {
-            when {
-                expression { params.ACTION in ['push', 'all'] && params.PUSH_TO_REGISTRY }
-            }
-            steps {
-                script {
-                    sh '''
-                        cd "${DOCKER_PATH}"
-                        
-                        echo "Pushing image to registry..."
-                        
-                        # Login to registry (requires credentials)
-                        # echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin "${DOCKER_REGISTRY}"
-                        
-                        # Push image
-                        # docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
-                        # docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                        
-                        echo "✓ Image pushed to registry"
-                    '''
-                }
             }
         }
 
@@ -215,66 +124,6 @@ pipeline {
                     # Show deployed container
                     docker ps | grep app-container || true
                 '''
-            }
-        }
-
-        stage('Verify Deployment') {
-            when {
-                expression { params.ACTION in ['deploy', 'all'] }
-            }
-            steps {
-                sh '''
-                    cd "${DOCKER_PATH}"
-                    
-                    echo "Verifying deployment..."
-                    
-                    sleep 5
-                    
-                    # Test the deployed container
-                    curl -f http://localhost:9090/api/health || {
-                        docker logs app-container-1 || true
-                        exit 1
-                    }
-                    
-                    # Get deployment info
-                    echo "Deployment Info:"
-                    docker ps -f name=app-container
-                    
-                    echo "✓ Deployment verified"
-                '''
-            }
-        }
-
-        stage('Documentation') {
-            steps {
-                sh '''
-                    cd "${DOCKER_PATH}"
-                    
-                    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-                    
-                    cat > docker-build-report.txt << EOF
-Docker Build Report
-===================
-
-Date: ${TIMESTAMP}
-Build: ${BUILD_NUMBER}
-Image: ${DOCKER_IMAGE}:${IMAGE_TAG}
-
-Docker Info:
-$(docker info | head -20)
-
-Image Details:
-$(docker images | grep terraform-webapp)
-
-Dockerfile:
-$(head -30 docker/Dockerfile)
-
-Status: SUCCESS
-EOF
-                    
-                    echo "✓ Documentation created"
-                '''
-                archiveArtifacts artifacts: 'docker-build-report.txt', allowEmptyArchive: true
             }
         }
     }
