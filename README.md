@@ -20,13 +20,21 @@ This is a **complete, production-ready DevOps infrastructure** with:
 │
 ├── 🏗️ Terraform Configuration
 │   └── Terraform/
-│       └── EC2 Provisioning/
+│       └── Provisioning/
 │           ├── Jenkinsfile (Main orchestration pipeline)
 │           └── Environments/
 │               ├── Docker/
 │               │   ├── Jenkinsfile (Docker build & deployment)
 │               │   ├── main.tf
 │               │   ├── output.tf
+│               │   └── variable.tf
+│               ├── Dev/
+│               │   ├── Jenkinsfile (Docker build & deployment)
+│               │   ├── backend/
+│               │   ├── frontend/
+│               │   ├── main.tf
+│               │   ├── output.tf
+│               │   ├── providers.tf
 │               │   └── variable.tf
 │
 ├── ✅ Test & Validation
@@ -72,7 +80,7 @@ less PIPELINE-QUICKREF.md
 4. Repeat for: terraform-test, terraform-prod, terraform-docker, terraform-local
 ```
 
-### Step 4: Deploy to Dev
+### Step 4: Deploy to Dev or docker
 ```bash
 # Option A: Jenkins UI
 # Build with Parameters > ACTION=apply
