@@ -134,3 +134,28 @@ variable "tags" {
     "CreatedAt"   = "2024-01-23"
   }
 }
+
+# Docker Network Configuration Variables
+# variable "IPAM_subnet" {
+#   description = "Configuration of docker network bridge"
+#   type        = string
+#   default     = "172.17.0.0/16"
+# }
+
+# variable "IPAM_gateway" {
+#   description = "Gateway IP for docker network bridge"
+#   type        = string
+#   default     = "172.17.0.1"
+# }
+
+# variable "ip_range" {
+#   description = "IP Range for docker network bridge"
+#   type        = string
+#   default     = "172.17.0.0/24"
+# }
+
+# variable "ipv6_address" {
+#   description = "Configuration of docker network bridge"
+#   type        = string
+#   default     = "172.17.0.10"
+# }

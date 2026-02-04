@@ -141,3 +141,6 @@ reports/
 *~
 .#*
 #*#
+
+# PR_agent
+pr-agent/

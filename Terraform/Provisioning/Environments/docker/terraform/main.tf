@@ -15,10 +15,17 @@ resource "docker_image" "custom_image" {
   }
 }
 
-# Docker Network
+# Docker Network Configuration - Localhost Network
 resource "docker_network" "app_network" {
   name   = var.network_name
   driver = var.network_driver
+
+  # IPAM Configuration - Default settings for localhost
+  #   ipam_config {
+  #     subnet = var.IPAM_subnet
+  #     gateway = var.IPAM_gateway
+  #     ip_range = var.ip_range
+  #   }
 }
 
 # Docker Volumes
@@ -30,6 +37,10 @@ resource "docker_volume" "app_volumes" {
 }
 
 # Docker Containers - Localhost Network
+# Create multiple containers based on count variable
+# Each container is named uniquely using the count index
+# Containers are connected to the defined Docker network
+# 
 resource "docker_container" "app" {
   count = var.container_count
 
@@ -43,6 +54,7 @@ resource "docker_container" "app" {
   # Network - Use bridge network for localhost
   networks_advanced {
     name = docker_network.app_network.name
+    # ipv6_address = var.ipv6_address
   }
 
   # Port Mappings - Simple localhost port binding
@@ -113,6 +125,7 @@ locals {
 }
 
 # Docker Compose equivalent configuration (informational)
+# This resource generates a Docker Compose YAML file for reference
 resource "local_file" "docker_compose" {
   filename = "${path.module}/../scripts/docker-compose.yml"
   content = yamlencode({
@@ -129,6 +142,7 @@ resource "local_file" "docker_compose" {
         labels = var.tags
       }
     }
+
     networks = {
       "app-network" = {
         driver = "bridge"
@@ -140,6 +154,7 @@ resource "local_file" "docker_compose" {
 }
 
 # Script to build or configure containers
+# This script can be used to set up or initialize containers after creation
 resource "local_file" "container_setup_script" {
   filename = "${path.module}/../scripts/setup-containers.sh"
   content  = <<-EOT
@@ -200,6 +215,7 @@ EOT
 }
 
 # Local file to store Docker configuration
+# This file contains metadata about the Docker setup
 resource "local_file" "docker_config" {
   filename = "${path.module}/../config/docker-config.json"
   content = jsonencode({
