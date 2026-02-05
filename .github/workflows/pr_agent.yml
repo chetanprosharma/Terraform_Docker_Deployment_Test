@@ -1,4 +1,4 @@
-on:
+  on:
   pull_request:
     types: [opened, reopened, ready_for_review]
   issue_comment:
@@ -21,11 +21,15 @@ jobs:
           # Custom review instructions
           pr_reviewer.extra_instructions: "Focus on security vulnerabilities and performance issues. Check for proper error handling."
           # Set the model to Gemini
-          config.model: "ollama/qwen2.5-coder:7b"
-          config.fallback_models: '["ollama/qwen2.5-coder:3b"]'
-          # config.model: "ollama/qwen2.5-coder:32b"
-          # config.fallback_models: '["ollama/qwen2.5-coder:32b"]'
-          config.custom_model_max_tokens: "128000"
+          # config.model: "ollama/qwen2.5-coder:7b"
+          # config.fallback_models: '["ollama/qwen2.5-coder:3b"]'
+          config.model: "ollama/deepseek-coder:6.7b"
+          config.fallback_models: '[
+          "ollama/qwen2.5-coder:7b",
+          "ollama/codellama:7b"
+          ]'
+          LITELLM_REQUEST_TIMEOUT: "240"
+          config.custom_model_max_tokens: "32768"
           # Ollama configuration
           OLLAMA.API_BASE: "http://192.168.28.31:11434"
           github_action_config.auto_review: "true" # enable\disable auto review
