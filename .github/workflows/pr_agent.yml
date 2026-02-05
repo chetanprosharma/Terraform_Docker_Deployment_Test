@@ -2,37 +2,44 @@ on:
   pull_request:
     types: [opened, reopened, ready_for_review]
   issue_comment:
+
 jobs:
   pr_agent_job:
     if: ${{ github.event.sender.type != 'Bot' }}
-    runs-on: ubuntu-latest
+    runs-on: self-hosted   # REQUIRED for Ollama
     permissions:
       issues: write
       pull-requests: write
       contents: write
+
+    env:
+      OLLAMA_BASE_URL: "http://192.168.28.31:11434"
+      LITELLM_REQUEST_TIMEOUT: "240"
+      LITELLM_TIMEOUT: "240"
+
     name: Run pr agent on every pull request, respond to user comments
+
     steps:
       - name: PR Agent action step
         id: pragent
         uses: qodo-ai/pr-agent@main
         env:
-          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Custom review instructions
-          pr_reviewer.extra_instructions: "Focus on security vulnerabilities and performance issues. Check for proper error handling."
-          # Set the model to Gemini
-          # config.model: "ollama/qwen2.5-coder:7b"
-          # config.fallback_models: '["ollama/qwen2.5-coder:3b"]'
+
+          # Optional (only needed if you later add cloud fallback)
+          OPENAI_API_KEY: ${{ secrets.OPENAI_KEY }}
+
+          pr_reviewer.extra_instructions: >
+            Focus on security vulnerabilities and performance issues.
+            Check for proper error handling.
+
           config.model: "ollama/deepseek-coder:6.7b"
-          config.fallback_models: '[
-          "ollama/qwen2.5-coder:7b",
-          "ollama/codellama:7b"
-          ]'
-          LITELLM_REQUEST_TIMEOUT: "240"
+
+          config.fallback_models: '["ollama/qwen2.5-coder:7b","ollama/codellama:7b"]'
+
           config.custom_model_max_tokens: "32768"
-          # Ollama configuration
-          OLLAMA.API_BASE: "http://192.168.28.31:11434"
-          github_action_config.auto_review: "true" # enable\disable auto review
-          github_action_config.auto_describe: "true" # enable\disable auto describe
-          github_action_config.auto_improve: "true" # enable\disable auto improve
-          github_action_config.pr_actions: '["opened", "reopened", "ready_for_review", "review_requested"]'
+
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "true"
+          github_action_config.auto_improve: "true"
+          github_action_config.pr_actions: '["opened","reopened","ready_for_review","review_requested"]'
