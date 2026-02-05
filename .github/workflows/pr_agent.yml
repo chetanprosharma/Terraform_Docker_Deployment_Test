@@ -6,18 +6,14 @@ on:
 jobs:
   pr_agent_job:
     if: ${{ github.event.sender.type != 'Bot' }}
-    runs-on: self-hosted   # REQUIRED for Ollama
+    runs-on: ubuntu-latest   # ✅ GitHub-managed, fully automatic
+
     permissions:
       issues: write
       pull-requests: write
       contents: write
 
-    env:
-      OLLAMA_BASE_URL: "http://192.168.28.31:11434"
-      LITELLM_REQUEST_TIMEOUT: "240"
-      LITELLM_TIMEOUT: "240"
-
-    name: Run pr agent on every pull request, respond to user comments
+    name: Run PR Agent on every pull request and user comment
 
     steps:
       - name: PR Agent action step
@@ -26,20 +22,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # Optional (only needed if you later add cloud fallback)
-          OPENAI_API_KEY: ${{ secrets.OPENAI_KEY }}
+          # ✅ Cloud LLM (required for GitHub-hosted runner)
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
 
+          # 🔍 Review behavior
           pr_reviewer.extra_instructions: >
             Focus on security vulnerabilities and performance issues.
             Check for proper error handling.
 
-          config.model: "ollama/deepseek-coder:6.7b"
+          # ✅ Stable + fast + cheap
+          config.model: "gpt-4o-mini"
 
-          config.fallback_models: '["ollama/qwen2.5-coder:7b","ollama/codellama:7b"]'
+          # Optional fallback (same family)
+          config.fallback_models: '["gpt-4o-mini"]'
 
-          config.custom_model_max_tokens: "32768"
+          # Token control
+          config.custom_model_max_tokens: "16384"
 
+          # Automation controls
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "true"
-          github_action_config.auto_improve: "true"
-          github_action_config.pr_actions: '["opened","reopened","ready_for_review","review_requested"]'
+
+          # ⚠️ Disable auto_improve to avoid noisy comments
+          github_action_config.auto_improve: "false"
+
+          github_action_config.pr_actions: '[
+            "opened",
+            "reopened",
+            "ready_for_review",
+            "review_requested"]'
