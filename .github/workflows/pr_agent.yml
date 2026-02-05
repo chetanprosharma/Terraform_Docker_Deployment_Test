@@ -6,48 +6,33 @@ on:
 jobs:
   pr_agent_job:
     if: ${{ github.event.sender.type != 'Bot' }}
-    runs-on: ubuntu-latest   # ✅ GitHub-managed, fully automatic
+    runs-on: self-hosted   # ✅ REQUIRED for Ollama
 
     permissions:
       issues: write
       pull-requests: write
       contents: write
 
-    name: Run PR Agent on every pull request and user comment
+    env:
+      OLLAMA_BASE_URL: "http://103.117.15.75:11434"  # ✅ REQUIRED for Ollama
+      LITELLM_REQUEST_TIMEOUT: "300"
+      LITELLM_TIMEOUT: "300"
 
     steps:
-      - name: PR Agent action step
-        id: pragent
+      - name: Run PR Agent
         uses: qodo-ai/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # ✅ Cloud LLM (required for GitHub-hosted runner)
-          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          config.model: "ollama/deepseek-coder:6.7b"
+          config.fallback_models: '[
+            "ollama/qwen2.5-coder:7b",
+            "ollama/codellama:7b"]'
 
-          # 🔍 Review behavior
-          pr_reviewer.extra_instructions: >
-            Focus on security vulnerabilities and performance issues.
-            Check for proper error handling.
+          config.custom_model_max_tokens: "32768"
 
-          # ✅ Stable + fast + cheap
-          config.model: "gpt-4o-mini"
-
-          # Optional fallback (same family)
-          config.fallback_models: '["gpt-4o-mini"]'
-
-          # Token control
-          config.custom_model_max_tokens: "16384"
-
-          # Automation controls
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "true"
-
-          # ⚠️ Disable auto_improve to avoid noisy comments
           github_action_config.auto_improve: "false"
-
-          github_action_config.pr_actions: '[
-            "opened",
-            "reopened",
-            "ready_for_review",
-            "review_requested"]'
+          github_action_config.pr_comment: "true"
+          github_action_config.issue_comment: "true"
