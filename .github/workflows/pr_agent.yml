@@ -2,11 +2,12 @@ on:
   pull_request:
     types: [opened, reopened, ready_for_review]
   issue_comment:
+    types: [created]
 
 jobs:
   pr_agent_job:
     if: ${{ github.event.sender.type != 'Bot' }}
-    runs-on: self-hosted   # ✅ REQUIRED for Ollama
+    runs-on: self-hosted   #REQUIRED for Ollama
 
     permissions:
       issues: write
@@ -14,7 +15,7 @@ jobs:
       contents: write
 
     env:
-      OLLAMA_BASE_URL: "http://127.0.0.1:11434" # ✅ REQUIRED for Ollama
+      OLLAMA_BASE_URL: "http://192.168.28.138:11434" #REQUIRED for Ollama
       LITELLM_REQUEST_TIMEOUT: "300"
       LITELLM_TIMEOUT: "300"
 
@@ -22,17 +23,15 @@ jobs:
       - name: Run PR Agent
         uses: qodo-ai/pr-agent@main
         env:
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
           config.model: "ollama/deepseek-coder:6.7b"
-          config.fallback_models: '[
-            "ollama/qwen2.5-coder:7b",
-            "ollama/codellama:7b"]'
-
+          config.fallback_models: '["ollama/qwen2.5-coder:7b","ollama/codellama:7b"]'
           config.custom_model_max_tokens: "32768"
-
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "true"
           github_action_config.auto_improve: "false"
-          github_action_config.pr_comment: "true"
-          github_action_config.issue_comment: "true"
+          # IMPORTANT: enable comment commands
+          github_action_config.respond_to_comments: "true"
+          # What events PR Agent reacts to
+          github_action_config.pr_actions: '["opened","reopened","ready_for_review","commented"]'
