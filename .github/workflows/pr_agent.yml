@@ -15,7 +15,7 @@ jobs:
       contents: write
 
     env:
-      OLLAMA_BASE_URL: "http://192.168.28.138:11434" #REQUIRED for Ollama
+      OLLAMA_BASE_URL: "http://127.0.0.1:11434" #REQUIRED for Ollama
       LITELLM_REQUEST_TIMEOUT: "300"
       LITELLM_TIMEOUT: "300"
 
