@@ -18,10 +18,15 @@ jobs:
       OLLAMA_BASE_URL: http://host.docker.internal:11434 #REQUIRED for Ollama
       # OLLAMA_BASE_URL: "http://127.0.1.1:11434" #REQUIRED for Ollama
       OLLAMA_HOST: "http://host.docker.internal:11434"
+      LOG_LEVEL: "DEBUG" 
+      PR_AGENT_LOG_LEVEL: "DEBUG" 
+      LITELLM_LOG: "DEBUG"
       LITELLM_REQUEST_TIMEOUT: "300"
       LITELLM_TIMEOUT: "300"
 
     steps:
+      - name: Check Ollama
+        run: curl http://host.docker.internal:11434/api/tags
       - name: Run PR Agent
         uses: qodo-ai/pr-agent@main
         env:
@@ -29,7 +34,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           config.model: "ollama/deepseek-coder:6.7b"
           config.fallback_models: '["ollama/qwen2.5-coder:7b","ollama/codellama:7b"]'
-          config.custom_model_max_tokens: "32768"
+          config.custom_model_max_tokens: "8192"
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "true"
           github_action_config.auto_improve: "false"
