@@ -18,15 +18,21 @@ jobs:
       OLLAMA_BASE_URL: http://host.docker.internal:11434 #REQUIRED for Ollama
       # OLLAMA_BASE_URL: "http://127.0.1.1:11434" #REQUIRED for Ollama
       OLLAMA_HOST: "http://host.docker.internal:11434"
+      OPENAI_API_KEY: "ollama"
+      PR_AGENT_LLM_PROVIDER: "litellm"
+      PR_AGENT_MODEL: "ollama/qwen2.5-coder:7b"
+      LITELLM_REQUEST_TIMEOUT: "300"
+      LITELLM_TIMEOUT: "300"
       LOG_LEVEL: "DEBUG" 
       PR_AGENT_LOG_LEVEL: "DEBUG" 
       LITELLM_LOG: "DEBUG"
-      LITELLM_REQUEST_TIMEOUT: "300"
-      LITELLM_TIMEOUT: "300"
 
     steps:
       - name: Check Ollama
         run: curl http://host.docker.internal:11434/api/tags
+      - name: Check Ollama connectivity
+        run: |
+          curl http://host.docker.internal:11434/api/tags
       - name: Run PR Agent
         uses: qodo-ai/pr-agent@main
         env:
