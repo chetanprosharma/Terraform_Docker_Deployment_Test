@@ -4,6 +4,7 @@
 # Health Check Script
 # Purpose: Validate that all infrastructure components are running
 # Usage: ./health-checks.sh <environment> <config_file>
+# To check PR_AGet setup
 ##############################################################################
 
 set -e
